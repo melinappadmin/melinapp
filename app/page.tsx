@@ -1,29 +1,31 @@
 "use client";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import type { Client, Product, Movement } from "../lib/supabase";
 import Login from "./login";
 import { ClientInventoryEditor, ProductEditor, Reports, Users } from "./components/AdminExtras";
 import { Financial } from "./components/Financial";
-const MapView=dynamic(()=>import("./components/MapView"),{ssr:false});
+const MapView=nextDynamic(()=>import("./components/MapView"),{ssr:false});
+export const dynamic = "force-dynamic";
 
 type Modal = "movement"|"product"|"client"|null;
 type Stop={id:string;client_id:string;stop_order:number;planned_quantity:number;delivered_quantity:number|null;status:string;clients?:Client};
 const nav=["Visão geral","Estoque","Clientes","Rotas","Financeiro","Pontos de venda","Relatórios","Usuários"];
 async function apiAction(body:Record<string,unknown>){const r=await fetch("/api/actions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw new Error(j.error||"Erro ao salvar");return j}
+async function fetchWithTimeout(url:string,options:RequestInit={},timeout=12000){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeout);try{return await fetch(url,{...options,signal:controller.signal,cache:"no-store"})}finally{clearTimeout(timer)}}
 
 export default function Home(){
  const [authenticated,setAuthenticated]=useState<boolean|null>(null);
  const [mobileMenu,setMobileMenu]=useState(false);
  const [clientStocks,setClientStocks]=useState<any[]>([]),[users,setUsers]=useState<any[]>([]),[audit,setAudit]=useState<any[]>([]),[session,setSession]=useState<any>(null),[financialCategories,setFinancialCategories]=useState<any[]>([]),[financialTransactions,setFinancialTransactions]=useState<any[]>([]);
  const [active,setActive]=useState("Visão geral"),[products,setProducts]=useState<Product[]>([]),[clients,setClients]=useState<Client[]>([]),[movements,setMovements]=useState<Movement[]>([]),[stops,setStops]=useState<Stop[]>([]),[modal,setModal]=useState<Modal>(null),[editingClient,setEditingClient]=useState<Client|null>(null),[loading,setLoading]=useState(true),[notice,setNotice]=useState(""),[query,setQuery]=useState("");
- async function load(){setLoading(true);const r=await fetch("/api/data");if(r.status===401){setAuthenticated(false);setLoading(false);return}const data=await r.json();setProducts(data.products||[]);setClients(data.clients||[]);setMovements(data.movements||[]);setStops(data.stops||[]);setClientStocks(data.clientStocks||[]);setUsers(data.users||[]);setAudit(data.audit||[]);setFinancialCategories(data.financialCategories||[]);setFinancialTransactions(data.financialTransactions||[]);setSession(data.session||null);setLoading(false)}
- useEffect(()=>{fetch("/api/auth/session").then(r=>r.json()).then(x=>{setAuthenticated(x.authenticated);if(x.authenticated)load()})},[]);useEffect(()=>{if(!notice)return;const t=setTimeout(()=>setNotice(""),3500);return()=>clearTimeout(t)},[notice]);
+ async function load(){setLoading(true);try{const r=await fetchWithTimeout("/api/data");if(r.status===401){setAuthenticated(false);return}if(!r.ok)throw new Error("Não foi possível carregar os dados");const data=await r.json();setProducts(data.products||[]);setClients(data.clients||[]);setMovements(data.movements||[]);setStops(data.stops||[]);setClientStocks(data.clientStocks||[]);setUsers(data.users||[]);setAudit(data.audit||[]);setFinancialCategories(data.financialCategories||[]);setFinancialTransactions(data.financialTransactions||[]);setSession(data.session||null)}catch{setNotice("Não foi possível carregar os dados. Tente novamente.")}finally{setLoading(false)}}
+ useEffect(()=>{let mounted=true;fetchWithTimeout("/api/auth/session").then(r=>r.ok?r.json():{authenticated:false}).then(x=>{if(!mounted)return;setAuthenticated(Boolean(x.authenticated));if(x.authenticated)load()}).catch(()=>{if(mounted)setAuthenticated(false)});return()=>{mounted=false}},[]);useEffect(()=>{if(!notice)return;const t=setTimeout(()=>setNotice(""),3500);return()=>clearTimeout(t)},[notice]);
  function done(msg:string){setModal(null);setNotice(msg);load()}
  const normalizedQuery=query.trim().toLocaleLowerCase("pt-BR");
  const filtered=clients.filter(c=>`${c.name} ${c.neighborhood||""} ${c.address||""}`.toLocaleLowerCase("pt-BR").includes(normalizedQuery));
  async function logout(){await fetch("/api/auth/session",{method:"DELETE"});setAuthenticated(false)}
- if(authenticated===null)return <div className="loading full">Validando acesso...</div>;
+ if(authenticated===null)return <div className="session-loading"><img src="/logo.jpeg" alt="Paieiro Melin" width="72" height="72"/><strong>Validando acesso</strong><span>Aguarde um instante…</span></div>;
  if(!authenticated)return <Login success={()=>{setAuthenticated(true);load()}}/>;
  return <main className={`app-shell ${mobileMenu?"menu-open":""}`}><button className="menu-backdrop" aria-label="Fechar menu" onClick={()=>setMobileMenu(false)}/><aside className="sidebar"><div className="brand"><img src="/logo.jpeg" alt="Paieiro Melin"/><div><strong>MELIN</strong><span>APP</span></div><button className="menu-close" onClick={()=>setMobileMenu(false)} aria-label="Fechar menu">×</button></div><nav>{nav.map((x,i)=><button key={x} className={active===x?"active":""} onClick={()=>{setActive(x);setMobileMenu(false)}}><span className="nav-icon">{["⌂","▦","◉","↗","$","⌖","▤","♙"][i]}</span>{x}</button>)}</nav><div className="sidebar-note"><span>ROTA ATUAL</span><strong>{stops.length} paradas</strong><small>{stops.filter(s=>s.status==="concluida").length} concluídas</small><button onClick={()=>{setActive("Rotas");setMobileMenu(false)}}>Ver rota completa →</button></div><div className="profile"><span>RM</span><div><strong>Gestão Melin</strong><small>Administrador</small></div></div></aside>
  <section className="workspace"><header><button className="mobile-menu-button" onClick={()=>setMobileMenu(true)} aria-label="Abrir menu">☰</button><div><p>OPERAÇÃO MELIN</p><h1>{active}</h1></div><div className="header-actions"><button className="logout-btn" onClick={logout}>Sair</button><button className="icon-btn">♢<i>{clients.filter(c=>c.current_stock<c.min_stock).length}</i></button><button className="primary" onClick={()=>setModal("movement")}>＋ Nova movimentação</button></div></header>

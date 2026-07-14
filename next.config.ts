@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
         source: "/onde-comprar",
         headers: [{ key: "Cache-Control", value: "no-store, no-cache, must-revalidate" }],
       },
+      {
+        source: "/",
+        headers: [{ key: "Cache-Control", value: "no-store, no-cache, must-revalidate" }],
+      },
     ];
   },
 };

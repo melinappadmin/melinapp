@@ -1,11 +1,12 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import styles from "./onde-comprar.module.css";
 
-const MapView = dynamic(() => import("../components/MapView"), { ssr: false });
+const MapView = nextDynamic(() => import("../components/MapView"), { ssr: false });
+export const dynamic = "force-dynamic";
 
 type Point = {
   id: string;
