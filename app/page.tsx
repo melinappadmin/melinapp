@@ -4,18 +4,19 @@ import dynamic from "next/dynamic";
 import type { Client, Product, Movement } from "../lib/supabase";
 import Login from "./login";
 import { ClientEditor, ClientInventoryEditor, ProductEditor, Reports, Users } from "./components/AdminExtras";
+import { Financial } from "./components/Financial";
 const MapView=dynamic(()=>import("./components/MapView"),{ssr:false});
 
 type Modal = "movement"|"product"|"client"|null;
 type Stop={id:string;client_id:string;stop_order:number;planned_quantity:number;delivered_quantity:number|null;status:string;clients?:Client};
-const nav=["Visão geral","Estoque","Clientes","Rotas","Pontos de venda","Relatórios","Usuários"];
+const nav=["Visão geral","Estoque","Clientes","Rotas","Financeiro","Pontos de venda","Relatórios","Usuários"];
 async function apiAction(body:Record<string,unknown>){const r=await fetch("/api/actions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw new Error(j.error||"Erro ao salvar");return j}
 
 export default function Home(){
  const [authenticated,setAuthenticated]=useState<boolean|null>(null);
- const [clientStocks,setClientStocks]=useState<any[]>([]),[users,setUsers]=useState<any[]>([]),[audit,setAudit]=useState<any[]>([]),[session,setSession]=useState<any>(null);
+ const [clientStocks,setClientStocks]=useState<any[]>([]),[users,setUsers]=useState<any[]>([]),[audit,setAudit]=useState<any[]>([]),[session,setSession]=useState<any>(null),[financialCategories,setFinancialCategories]=useState<any[]>([]),[financialTransactions,setFinancialTransactions]=useState<any[]>([]);
  const [active,setActive]=useState("Visão geral"),[products,setProducts]=useState<Product[]>([]),[clients,setClients]=useState<Client[]>([]),[movements,setMovements]=useState<Movement[]>([]),[stops,setStops]=useState<Stop[]>([]),[modal,setModal]=useState<Modal>(null),[loading,setLoading]=useState(true),[notice,setNotice]=useState(""),[query,setQuery]=useState("");
- async function load(){setLoading(true);const r=await fetch("/api/data");if(r.status===401){setAuthenticated(false);setLoading(false);return}const data=await r.json();setProducts(data.products||[]);setClients(data.clients||[]);setMovements(data.movements||[]);setStops(data.stops||[]);setClientStocks(data.clientStocks||[]);setUsers(data.users||[]);setAudit(data.audit||[]);setSession(data.session||null);setLoading(false)}
+ async function load(){setLoading(true);const r=await fetch("/api/data");if(r.status===401){setAuthenticated(false);setLoading(false);return}const data=await r.json();setProducts(data.products||[]);setClients(data.clients||[]);setMovements(data.movements||[]);setStops(data.stops||[]);setClientStocks(data.clientStocks||[]);setUsers(data.users||[]);setAudit(data.audit||[]);setFinancialCategories(data.financialCategories||[]);setFinancialTransactions(data.financialTransactions||[]);setSession(data.session||null);setLoading(false)}
  useEffect(()=>{fetch("/api/auth/session").then(r=>r.json()).then(x=>{setAuthenticated(x.authenticated);if(x.authenticated)load()})},[]);useEffect(()=>{if(!notice)return;const t=setTimeout(()=>setNotice(""),3500);return()=>clearTimeout(t)},[notice]);
  function done(msg:string){setModal(null);setNotice(msg);load()}
  const filtered=clients.filter(c=>`${c.name} ${c.neighborhood||""}`.toLowerCase().includes(query.toLowerCase()));
@@ -29,6 +30,7 @@ export default function Home(){
  {active==="Estoque"&&<><Stock products={products} movements={movements} add={()=>setModal("product")} move={()=>setModal("movement")}/><ProductEditor products={products} reload={load}/></>} 
  {active==="Clientes"&&<><Clients clients={filtered} query={query} setQuery={setQuery} add={()=>setModal("client")}/><ClientInventoryEditor products={products} clients={clients} reload={load}/><ClientEditor clients={clients} reload={load}/></>} 
  {active==="Rotas"&&<Routes clients={clients} stops={stops} done={done}/>} 
+ {active==="Financeiro"&&session?.role==="admin"&&<Financial transactions={financialTransactions} categories={financialCategories} clients={clients} reload={load}/>}
  {active==="Pontos de venda"&&<Points clients={clients}/>} 
  {active==="Relatórios"&&<Reports products={products} clients={clients} movements={movements} clientStocks={clientStocks}/>} 
  {active==="Usuários"&&session?.role==="admin"&&<Users users={users} audit={audit} reload={load}/>} </div>}

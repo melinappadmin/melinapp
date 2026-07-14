@@ -93,6 +93,35 @@ create table if not exists public.audit_logs (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.financial_categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  kind text not null check (kind in ('receita','despesa','ambos')),
+  color text not null default '#0c5039',
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique(name,kind)
+);
+
+create table if not exists public.financial_transactions (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null check (kind in ('receita','despesa')),
+  description text not null,
+  category_id uuid references public.financial_categories(id),
+  client_id uuid references public.clients(id),
+  supplier text,
+  amount numeric(12,2) not null check (amount > 0),
+  due_date date not null,
+  paid_at date,
+  status text not null default 'pendente' check (status in ('pendente','pago','cancelado')),
+  payment_method text,
+  notes text,
+  installment_number integer not null default 1,
+  installment_total integer not null default 1,
+  recurrence_group uuid,
+  created_at timestamptz not null default now()
+);
+
 create or replace function public.apply_stock_movement()
 returns trigger language plpgsql security definer as $$
 begin
@@ -121,6 +150,8 @@ alter table public.route_stops enable row level security;
 alter table public.client_product_stock enable row level security;
 alter table public.app_users enable row level security;
 alter table public.audit_logs enable row level security;
+alter table public.financial_categories enable row level security;
+alter table public.financial_transactions enable row level security;
 
 drop policy if exists "anon products" on public.products;
 create policy "anon products" on public.products for all to anon using (public.is_melin_admin()) with check (public.is_melin_admin());
@@ -138,6 +169,17 @@ drop policy if exists "admin users" on public.app_users;
 create policy "admin users" on public.app_users for all to anon using (public.is_melin_admin()) with check (public.is_melin_admin());
 drop policy if exists "admin audit" on public.audit_logs;
 create policy "admin audit" on public.audit_logs for all to anon using (public.is_melin_admin()) with check (public.is_melin_admin());
+drop policy if exists "admin financial categories" on public.financial_categories;
+create policy "admin financial categories" on public.financial_categories for all to anon using (public.is_melin_admin()) with check (public.is_melin_admin());
+drop policy if exists "admin financial transactions" on public.financial_transactions;
+create policy "admin financial transactions" on public.financial_transactions for all to anon using (public.is_melin_admin()) with check (public.is_melin_admin());
+
+insert into public.financial_categories(name,kind,color) values
+  ('Vendas','receita','#28754e'),('Outras receitas','receita','#3b82f6'),
+  ('Compras','despesa','#d86a1e'),('Combustível','despesa','#d5a44a'),
+  ('Impostos','despesa','#a34e28'),('Manutenção','despesa','#7c5c9e'),
+  ('Outras despesas','despesa','#728078')
+on conflict(name,kind) do nothing;
 
 insert into public.products (name, sku, current_stock, min_stock) values
   ('Paieiro Tradicional','PT-001',684,200),
