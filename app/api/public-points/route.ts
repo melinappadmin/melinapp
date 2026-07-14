@@ -1,0 +1,2 @@
+import { serverSupabase } from "../../../lib/server-supabase";
+export async function GET(){const s=serverSupabase(),r=await s.from("clients").select("id,name,address,neighborhood,city,state,latitude,longitude,current_stock").eq("active",true).not("latitude","is",null).not("longitude","is",null).order("name");return Response.json((r.data||[]).map(x=>({...x,available:x.current_stock>0,current_stock:undefined})))}
