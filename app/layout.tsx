@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./mobile.css";
+import "./mobile-fixes.css";
 import Pwa from "./Pwa";
 
 export const metadata: Metadata = {
