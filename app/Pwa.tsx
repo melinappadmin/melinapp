@@ -6,10 +6,17 @@ export default function Pwa() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    navigator.serviceWorker
-      .register("/sw.js", { updateViaCache: "none" })
-      .then((registration) => registration.update())
-      .catch(() => undefined);
+    async function removeLegacyWorker() {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((key) => key.startsWith("melin-")).map((key) => caches.delete(key)));
+      }
+    }
+
+    removeLegacyWorker().catch(() => undefined);
   }, []);
 
   return null;
